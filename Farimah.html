@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #intro {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #ff1a2b; font-family: "Montserrat", Arial, sans-serif; font-weight: 800;
+    font-size: clamp(40px, 10vw, 90px); text-shadow: 0 0 25px #ff1a2b88;
+    opacity: 0; transition: opacity 1.2s ease; pointer-events: none;
+  }
+  #intro.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="intro">Look here ↓</div>
+<canvas id="c"></canvas>
+
+<script>
+const FONT = '"Montserrat", Arial, sans-serif';
+const WORD = "I love you";
+const NAME = "𝐅𝐚𝐫𝐢𝐦𝐚𝐡";
+const RED = "#ff1a2b";
+const FILL_TIME = 9000; // how long (ms) the circle takes to fill
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const intro = document.getElementById("intro");
+let items = [], startTime = null, dpr = 1, W, H, R, fontSize;
+
+function build() {
+  dpr = window.devicePixelRatio || 1;
+  W = innerWidth; H = innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  R = Math.min(W, H) * 0.44;
+  fontSize = Math.max(10, R / 20);
+  ctx.font = `800 ${fontSize}px ${FONT}`;
+  const textW = ctx.measureText(WORD).width + fontSize * 0.6;
+  const gap = fontSize * 1.15;
+
+  items = [];
+  const innerR = R * 0.32;
+  for (let r = R; r > innerR; r -= gap) {
+    const n = Math.floor((2 * Math.PI * r) / textW);
+    if (n < 3) continue;
+    const off = Math.random() * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      const a = off + (i / n) * Math.PI * 2;
+      items.push({ x: W / 2 + Math.cos(a) * r, y: H / 2 + Math.sin(a) * r, rot: a + Math.PI / 2, t: 0 });
+    }
+  }
+  // random order so it "fills up" everywhere
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  items.forEach((it, i) => it.t = (i / items.length) * FILL_TIME);
+}
+
+function draw(now) {
+  if (startTime === null) startTime = now;
+  const elapsed = now - startTime;
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = `800 ${fontSize}px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = RED;
+  ctx.shadowColor = RED;
+  ctx.shadowBlur = 8;
+
+  for (const it of items) {
+    const age = elapsed - it.t;
+    if (age < 0) continue;
+    const p = Math.min(age / 500, 1);
+    const s = 0.3 + 0.7 * (1 - Math.pow(1 - p, 3));
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.translate(it.x, it.y);
+    ctx.rotate(it.rot);
+    ctx.scale(s, s);
+    ctx.fillText(WORD, 0, 0);
+    ctx.restore();
+  }
+
+  // name in the center once the circle is almost full
+  if (elapsed > FILL_TIME * 0.85) {
+    const p = Math.min((elapsed - FILL_TIME * 0.85) / 1000, 1);
+    const beat = 1 + 0.04 * Math.sin(elapsed / 250);
+    let nf = R * 0.22;
+    ctx.font = `800 ${nf}px ${FONT}`;
+    const maxW = R * 0.32 * 2 * 0.9;
+    const w = ctx.measureText(NAME).width;
+    if (w > maxW) nf *= maxW / w;
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(beat, beat);
+    ctx.font = `800 ${nf}px ${FONT}`;
+    ctx.shadowBlur = 25;
+    ctx.fillText(NAME, 0, 0);
+    ctx.restore();
+  }
+  requestAnimationFrame(draw);
+}
+
+async function start() {
+  try { await document.fonts.load(`800 20px ${FONT}`); } catch (e) {}
+  build();
+  // 1) show "Look here"
+  requestAnimationFrame(() => intro.classList.add("show"));
+  // 2) fade it out, then start filling the circle
+  setTimeout(() => intro.classList.remove("show"), 2600);
+  setTimeout(() => requestAnimationFrame(draw), 3800);
+}
+
+addEventListener("resize", () => {
+  build();
+  // after resize, show everything instantlyitems.forEach(it => it.t = -1000);
+});
+
+start();
+</script>
+</body>
+</html>
